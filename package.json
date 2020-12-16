@@ -1,8 +1,12 @@
 {
   "name": "runval",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A typescript first runtime schema validation library",
   "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
