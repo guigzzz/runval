@@ -1,4 +1,16 @@
-import { object, number, string, array, Success, Failure, tuple, Schema, Infer, boolean } from '../src/schema';
+import {
+    object,
+    number,
+    string,
+    array,
+    Success,
+    Failure,
+    tuple,
+    Schema,
+    Infer,
+    boolean,
+    optional,
+} from '../src/schema';
 
 interface Test<T = unknown> {
     name: string;
@@ -81,6 +93,36 @@ describe('validates valid items', () => {
                 },
             },
         },
+        {
+            name: 'validates object with optional field if field absent',
+            schema: object({
+                foo: number(),
+                bar: optional(string()),
+            }),
+            item: {
+                foo: 1,
+            },
+        },
+        {
+            name: 'validates object with optional field if field present',
+            schema: object({
+                foo: number(),
+                bar: optional(string()),
+            }),
+            item: {
+                foo: 1,
+            },
+        },
+        {
+            name: 'validates optional value if absent',
+            schema: optional(string()),
+            item: undefined,
+        },
+        {
+            name: 'validates optional value if present',
+            schema: optional(string()),
+            item: 'hello world',
+        },
     ];
 
     tests.forEach(test);
@@ -98,7 +140,9 @@ describe('rejects invalid items', () => {
                 foo: 1,
                 foobar: 'abc',
             },
-            expectedError: new Error(`Missing field in object: 'bar'`),
+            expectedError: new Error(
+                `Got invalid type for field 'bar': 'Invalid primitive. Expected string, but got undefined'`,
+            ),
         },
         {
             name: 'rejects simple object with invalid nested array',
@@ -110,7 +154,9 @@ describe('rejects invalid items', () => {
                 foo: 1,
                 bar: [1, 2, '3'],
             },
-            expectedError: new Error(`Got invalid type for field: 'bar'`),
+            expectedError: new Error(
+                `Got invalid type for field 'bar': 'Invalid primitive. Expected number, but got string'`,
+            ),
         },
     ];
 
@@ -151,4 +197,82 @@ describe('Infer', () => {
     };
 
     test({ name: 'Infer test 1', item, schema });
+});
+
+describe('Schema', () => {
+    const item = {
+        number: 1,
+        negNumber: -1,
+        maxNumber: Number.MAX_VALUE,
+        string: 'string',
+        longString:
+            'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Vivendum intellegat et qui, ei denique consequuntur vix. Semper aeterno percipit ut his, sea ex utinam referrentur repudiandae. No epicuri hendrerit consetetur sit, sit dicta adipiscing ex, in facete detracto deterruisset duo. Quot populo ad qui. Sit fugit nostrum et. Ad per diam dicant interesset, lorem iusto sensibus ut sed. No dicam aperiam vis. Pri posse graeco definitiones cu, id eam populo quaestio adipiscing, usu quod malorum te. Ex nam agam veri, dicunt efficiantur ad qui, ad legere adversarium sit. Commune platonem mel id, brute adipiscing duo an. Vivendum intellegat et qui, ei denique consequuntur vix. Offendit eleifend moderatius ex vix, quem odio mazim et qui, purto expetendis cotidieque quo cu, veri persius vituperata ei nec. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.',
+        boolean: true,
+        deeplyNested: {
+            foo: 'bar',
+            num: 1,
+            bool: false,
+        },
+    };
+
+    type ItemType = typeof item;
+
+    const schema: Schema<ItemType> = object({
+        number: number(),
+        negNumber: number(),
+        maxNumber: number(),
+        string: string(),
+        longString: string(),
+        boolean: boolean(),
+        deeplyNested: object({
+            foo: string(),
+            num: number(),
+            bool: boolean(),
+        }),
+    });
+
+    test({ name: 'Schema test 1', item, schema });
+});
+
+describe('Inference', () => {
+    it('works', () => {
+        const item = {
+            number: 1,
+            negNumber: -1,
+            maxNumber: Number.MAX_VALUE,
+            string: 'string',
+            longString:
+                'Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Vivendum intellegat et qui, ei denique consequuntur vix. Semper aeterno percipit ut his, sea ex utinam referrentur repudiandae. No epicuri hendrerit consetetur sit, sit dicta adipiscing ex, in facete detracto deterruisset duo. Quot populo ad qui. Sit fugit nostrum et. Ad per diam dicant interesset, lorem iusto sensibus ut sed. No dicam aperiam vis. Pri posse graeco definitiones cu, id eam populo quaestio adipiscing, usu quod malorum te. Ex nam agam veri, dicunt efficiantur ad qui, ad legere adversarium sit. Commune platonem mel id, brute adipiscing duo an. Vivendum intellegat et qui, ei denique consequuntur vix. Offendit eleifend moderatius ex vix, quem odio mazim et qui, purto expetendis cotidieque quo cu, veri persius vituperata ei nec. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.',
+            boolean: true,
+            deeplyNested: {
+                foo: 'bar',
+                num: 1,
+                bool: false,
+            },
+        };
+
+        type ItemType = typeof item;
+
+        const schema: Schema<ItemType> = object({
+            number: number(),
+            negNumber: number(),
+            maxNumber: number(),
+            string: string(),
+            longString: string(),
+            boolean: boolean(),
+            deeplyNested: object({
+                foo: string(),
+                num: number(),
+                bool: boolean(),
+            }),
+        });
+
+        const result = schema.validate(item);
+        if (result.success) {
+            const d: ItemType = result.item;
+            expect(d).toEqual(item);
+        } else {
+            fail();
+        }
+    });
 });

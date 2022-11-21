@@ -30,13 +30,6 @@ const failure = (error: Error): Failure => ({
     error,
 });
 
-const makeSchemaFromGuard = <T>(guard: Guard<Infer<Schema<T>>>): Schema<T> => {
-    return {
-        is: guard,
-        validate: (obj) => (guard(obj) ? success(obj) : failure(new Error())),
-    };
-};
-
 export type Infer<T> = T extends Schema<infer U>
     ? U extends Record<string, Schema> | Schema[]
         ? {
@@ -49,11 +42,21 @@ export type Infer<T> = T extends Schema<infer U>
         : U // U is likely a primitive, return. TODO: check if it actually is a primitive and return never if it isn't ?
     : never;
 
-export const number = () => makeSchemaFromGuard((value): value is number => typeof value === 'number');
+const makeSchemaFromPrimitive = <T>(typeName: string): Schema<T> => {
+    const guard = (obj: unknown): obj is Infer<Schema<T>> => typeof obj === typeName;
+    const validate = (obj: unknown): ValidationResult<Infer<Schema<T>>> =>
+        guard(obj)
+            ? success(obj)
+            : failure(new Error(`Invalid primitive. Expected ${typeName}, but got ${typeof obj}`));
 
-export const string = () => makeSchemaFromGuard((value): value is string => typeof value === 'string');
-
-export const boolean = () => makeSchemaFromGuard((value): value is boolean => typeof value === 'boolean');
+    return {
+        is: guard,
+        validate,
+    };
+};
+export const number = () => makeSchemaFromPrimitive<number>(typeof 0);
+export const string = () => makeSchemaFromPrimitive<string>(typeof '');
+export const boolean = () => makeSchemaFromPrimitive<boolean>(typeof false);
 
 export const tuple = <T extends [Schema, ...Schema[]]>(...schemas: T): Schema<T> => {
     const validate = (obj: unknown): ValidationResult<Infer<Schema<T>>> => {
@@ -76,7 +79,7 @@ export const tuple = <T extends [Schema, ...Schema[]]>(...schemas: T): Schema<T>
     };
 
     return {
-        is: (obj): obj is Infer<Schema<T>> => validate(obj).success,
+        is: (obj: unknown): obj is Infer<Schema<T>> => validate(obj).success,
         validate,
     };
 };
@@ -98,7 +101,7 @@ export const array = <T>(schema: Schema<T>): Schema<T[]> => {
     };
 
     return {
-        is: (obj): obj is Infer<Schema<T[]>> => validate(obj).success,
+        is: (obj: unknown): obj is Infer<Schema<T[]>> => validate(obj).success,
         validate,
     };
 };
@@ -113,18 +116,30 @@ export const object = <T extends Record<string, Schema>>(schema: T): Schema<T> =
 
         const o = obj as Indexable;
         for (const [key, val] of Object.entries(schema)) {
-            if (!(key in o)) {
-                return failure(new Error(`Missing field in object: '${key}'`));
-            }
-            if (!val.is(o[key])) {
-                return failure(new Error(`Got invalid type for field: '${key}'`));
+            const res = val.validate(o[key]);
+            if (!res.success) {
+                return failure(new Error(`Got invalid type for field '${key}': '${res.error.message}'`));
             }
         }
         return success(o);
     };
 
     return {
-        is: (obj): obj is Infer<Schema<T>> => validate(obj).success,
+        is: (obj: unknown): obj is Infer<Schema<T>> => validate(obj).success,
+        validate,
+    };
+};
+
+export const optional = <T>(schema: Schema<T>): Schema<T | undefined | null> => {
+    const validate = (obj: unknown): ValidationResult<Infer<Schema<T | undefined | null>>> => {
+        if (obj === undefined || obj === null) {
+            return success(obj);
+        }
+        return schema.validate(obj);
+    };
+
+    return {
+        is: (obj: unknown): obj is Infer<Schema<T>> => validate(obj).success,
         validate,
     };
 };
