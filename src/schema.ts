@@ -13,12 +13,14 @@ export type ValidationResult<T> = Failure | Success<T>;
 type Validator<T> = (obj: unknown) => ValidationResult<T>;
 
 export interface Schema<T = unknown> {
-    is: Guard<Infer<Schema<T>>>;
     validate: Validator<Infer<Schema<T>>>;
 }
 
-type All = number | string;
-type Guard<T = All> = (value: unknown) => value is T;
+type Guard<T> = (value: unknown) => value is T;
+
+export const toGuard = <T extends Schema>(schema: T): Guard<Infer<T>> => {
+    return (obj): obj is Infer<T> => schema.validate(obj).success;
+};
 
 const success = <T>(obj: unknown): Success<T> => ({
     success: true,
@@ -50,7 +52,6 @@ const makeSchemaFromPrimitive = <T>(typeName: string): Schema<T> => {
             : failure(new Error(`Invalid primitive. Expected ${typeName}, but got ${typeof obj}`));
 
     return {
-        is: guard,
         validate,
     };
 };
@@ -79,7 +80,6 @@ export const tuple = <T extends [Schema, ...Schema[]]>(...schemas: T): Schema<T>
     };
 
     return {
-        is: (obj: unknown): obj is Infer<Schema<T>> => validate(obj).success,
         validate,
     };
 };
@@ -101,7 +101,6 @@ export const array = <T>(schema: Schema<T>): Schema<T[]> => {
     };
 
     return {
-        is: (obj: unknown): obj is Infer<Schema<T[]>> => validate(obj).success,
         validate,
     };
 };
@@ -125,7 +124,6 @@ export const object = <T extends Record<string, Schema>>(schema: T): Schema<T> =
     };
 
     return {
-        is: (obj: unknown): obj is Infer<Schema<T>> => validate(obj).success,
         validate,
     };
 };
@@ -139,7 +137,6 @@ export const optional = <T>(schema: Schema<T>): Schema<T | undefined | null> => 
     };
 
     return {
-        is: (obj: unknown): obj is Infer<Schema<T>> => validate(obj).success,
         validate,
     };
 };

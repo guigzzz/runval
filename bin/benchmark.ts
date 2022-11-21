@@ -35,7 +35,7 @@ const schema: Schema<DataType> = object({
 
 b.suite(
     'Benchmark',
-    b.add('Schema', () => schema.is(data)),
+    b.add('Schema', () => schema.validate(data)),
     b.cycle(),
     b.complete(),
 );
