@@ -140,3 +140,49 @@ export const optional = <T>(schema: Schema<T>): Schema<T | undefined | null> => 
         validate,
     };
 };
+
+export const or = <T, U>(left: Schema<T>, right: Schema<U>): Schema<T | U> => {
+    const validate = (obj: unknown): ValidationResult<Infer<Schema<T | U>>> => {
+        const leftRes = left.validate(obj);
+        if (leftRes.success) {
+            return success(obj);
+        }
+
+        const rightRes = right.validate(obj);
+        if (rightRes.success) {
+            return success(obj);
+        }
+
+        return failure(new Error(`Failed or case. Left: ${leftRes.error.message}, Right: ${rightRes.error.message}`));
+    };
+
+    return {
+        validate,
+    };
+};
+
+export const and = <T, U>(left: Schema<T>, right: Schema<U>): Schema<T & U> => {
+    const validate = (obj: unknown): ValidationResult<Infer<Schema<T & U>>> => {
+        const leftRes = left.validate(obj);
+        const rightRes = right.validate(obj);
+
+        let errors = [];
+        if (!leftRes.success) {
+            errors.push(leftRes.error.message);
+        }
+
+        if (!rightRes.success) {
+            errors.push(rightRes.error.message);
+        }
+
+        if (errors.length) {
+            return failure(new Error(`Failed and case. ${errors.join(', ')}`));
+        }
+
+        return success(obj);
+    };
+
+    return {
+        validate,
+    };
+};

@@ -11,6 +11,8 @@ import {
     boolean,
     optional,
     toGuard,
+    or,
+    and,
 } from '../src/schema';
 
 interface Test<T = unknown> {
@@ -124,6 +126,24 @@ describe('validates valid items', () => {
             schema: optional(string()),
             item: 'hello world',
         },
+        {
+            name: 'validates one or the other',
+            schema: or(string(), number()),
+            item: 'hello world',
+        },
+        {
+            name: 'validates one or the other',
+            schema: or(string(), number()),
+            item: 1,
+        },
+        {
+            name: 'validates and schema',
+            schema: and(object({ foo: number() }), object({ bar: string() })),
+            item: {
+                foo: 1,
+                bar: 'hello',
+            },
+        },
     ];
 
     tests.forEach(test);
@@ -146,6 +166,22 @@ describe('rejects invalid items', () => {
             ),
         },
         {
+            name: 'rejects invalid nested object',
+            schema: object({
+                bar: object({
+                    foo: number(),
+                }),
+            }),
+            item: {
+                bar: {
+                    foo: 'hello',
+                },
+            },
+            expectedError: new Error(
+                `Got invalid type for field 'bar': 'Got invalid type for field 'foo': 'Invalid primitive. Expected number, but got string''`,
+            ),
+        },
+        {
             name: 'rejects simple object with invalid nested array',
             schema: object({
                 foo: number(),
@@ -159,45 +195,98 @@ describe('rejects invalid items', () => {
                 `Got invalid type for field 'bar': 'Invalid primitive. Expected number, but got string'`,
             ),
         },
+        {
+            name: 'rejects both invalid or',
+            schema: object({
+                foo: or(boolean(), number()),
+            }),
+            item: {
+                foo: 'hello',
+            },
+            expectedError: new Error(
+                `Got invalid type for field 'foo': 'Failed or case. Left: Invalid primitive. Expected boolean, but got string, Right: Invalid primitive. Expected number, but got string'`,
+            ),
+        },
+        {
+            name: 'rejects if invalid and',
+            schema: object({
+                foo: and(object({ foo: number() }), object({ bar: number() })),
+            }),
+            item: {
+                foo: {
+                    foo: 1,
+                },
+            },
+            expectedError: new Error(
+                `Got invalid type for field 'foo': 'Failed and case. Got invalid type for field 'bar': 'Invalid primitive. Expected number, but got undefined''`,
+            ),
+        },
     ];
 
     tests.forEach(test);
 });
 
 describe('Infer', () => {
-    const schema = object({
-        foo: object({
-            foobar: string(),
-        }),
-        bar: tuple(
-            object({
-                barfoo: number(),
+    {
+        const schema = object({
+            foo: object({
+                foobar: string(),
             }),
-            number(),
-            tuple(string(), number()),
-        ),
-        foobar: array(
-            object({
-                foobarbar: tuple(number()),
-            }),
-        ),
-    });
+            bar: tuple(
+                object({
+                    barfoo: number(),
+                }),
+                number(),
+                tuple(string(), number()),
+            ),
+            foobar: array(
+                object({
+                    foobarbar: tuple(number()),
+                }),
+            ),
+        });
 
-    const item: Infer<typeof schema> = {
-        foo: {
-            foobar: '1',
-        },
-        bar: [
-            {
-                barfoo: 1,
+        const item: Infer<typeof schema> = {
+            foo: {
+                foobar: '1',
             },
-            2,
-            ['abc', 4],
-        ],
-        foobar: [{ foobarbar: [1] }],
-    };
+            bar: [
+                {
+                    barfoo: 1,
+                },
+                2,
+                ['abc', 4],
+            ],
+            foobar: [{ foobarbar: [1] }],
+        };
 
-    test({ name: 'Infer test 1', item, schema });
+        test({ name: 'Infer test 1', item, schema });
+    }
+
+    {
+        const schema = or(number(), and(object({ foo: number() }), object({ bar: or(string(), boolean()) })));
+
+        const items: [string, Infer<typeof schema>][] = [
+            ['number', 1],
+            [
+                'object with string',
+                {
+                    foo: 1,
+                    bar: 'hello',
+                },
+            ],
+            [
+                'object with bool',
+                {
+                    foo: 1,
+                    bar: false,
+                },
+            ],
+        ];
+        for (const [name, item] of items) {
+            test({ name: `Infer test ${name}`, item, schema });
+        }
+    }
 });
 
 describe('Schema', () => {
